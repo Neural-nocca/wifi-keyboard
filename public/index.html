@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <title>WiFi Keyboard</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:system-ui; background:#1a1a2e; color:#fff;
+           padding:1rem; min-height:100vh;
+           display:flex; flex-direction:column; }
+    .status { text-align:center; color:#888; font-size:.8rem;
+              padding:.3rem 0; }
+    .status.ok { color:#4caf50; }
+    .status.err { color:#e94560; }
+    textarea { width:100%; flex:1; min-height:120px;
+               background:#16213e; color:#e6edf3; border:1px solid #0f3460;
+               border-radius:8px; padding:12px; font-size:1rem;
+               resize:none; outline:none; font-family:system-ui;
+               line-height:1.5; margin:.5rem 0; }
+    textarea::placeholder { color:#555; }
+    .send { width:100%; padding:14px; background:#e94560;
+            color:#fff; border:none; border-radius:8px;
+            font-size:1.1rem; font-weight:bold;
+            cursor:pointer; -webkit-user-select:none;
+            user-select:none; -webkit-tap-highlight-color:transparent; }
+    .send:active { background:#c23152; }
+    .send:disabled { background:#333; color:#666; }
+    .log { text-align:center; font-size:.85rem;
+           padding:.3rem 0; min-height:1.5rem; }
+    .log.ok { color:#4caf50; }
+    .log.err { color:#e94560; }
+  </style>
+</head>
+<body>
+  <p class="status" id="status">Підключення...</p>
+  <textarea id="text" placeholder="Набирай текст тут..."></textarea>
+  <p class="log" id="log"></p>
+  <button class="send" id="send" disabled>Надіслати</button>
+
+  <script>
+    const text = document.getElementById('text');
+    const btn = document.getElementById('send');
+    const status = document.getElementById('status');
+    const log = document.getElementById('log');
+
+    let ws;
+    function connect() {
+      log.textContent = '';
+      status.textContent = 'Підключення...';
+      status.className = 'status';
+
+      ws = new WebSocket('ws://' + location.host);
+
+      ws.onopen = () => {
+        status.textContent = 'Підключено ✓';
+        status.className = 'status ok';
+        btn.disabled = false;
+      };
+
+      ws.onclose = () => {
+        status.textContent = 'Відключено — перепідключення...';
+        status.className = 'status err';
+        btn.disabled = true;
+        setTimeout(connect, 2000);
+      };
+
+      ws.onerror = (e) => {
+        log.textContent = 'WebSocket помилка';
+        log.className = 'log err';
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const resp = JSON.parse(e.data);
+          if (resp.status === 'ok') {
+            log.textContent = '✓ Вставлено на PC';
+            log.className = 'log ok';
+          } else {
+            log.textContent = '✗ Помилка вставки на PC';
+            log.className = 'log err';
+          }
+        } catch(err) {}
+      };
+    }
+    connect();
+
+    function doSend() {
+      const val = text.value.trim();
+      if (!val) {
+        log.textContent = 'Введи текст';
+        log.className = 'log err';
+        return;
+      }
+      if (!ws || ws.readyState !== 1) {
+        log.textContent = 'Немає зʼєднання з PC';
+        log.className = 'log err';
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'text', content: val }));
+      log.textContent = '⏳ Надсилаю...';
+      log.className = 'log';
+      text.value = '';
+      text.focus();
+    }
+
+    btn.addEventListener('click', doSend);
+  </script>
+</body>
+</html>
